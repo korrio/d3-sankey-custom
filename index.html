@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>D3 Sankey Diagram</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-sankey/0.12.3/d3-sankey.min.js"></script>
+    <style>
+    	@import url('https://cdnjs.cloudflare.com/ajax/libs/inter-ui/3.19.3/inter.min.css');
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-weight: bold;
+        }
+
+        .node rect {
+            fill-opacity: 0.9;
+            shape-rendering: auto;
+        }
+        
+        .node text {
+            pointer-events: none;
+            font-size: 0.8rem;
+        }
+        
+        .link {
+            fill: none;
+            stroke-opacity: 0.5;
+        }
+        
+        .link:hover {
+            stroke-opacity: 0.8;
+        }
+        
+        #tooltip {
+            position: absolute;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="tooltip"></div>
+    <svg id="sankeyChart"></svg>
+    <img width="100%" src="https://scontent.fbkk24-1.fna.fbcdn.net/v/t39.30808-6/470499268_9336037353095571_3381691550816296882_n.jpg?_nc_cat=106&ccb=1-7&_nc_sid=833d8c&_nc_eui2=AeHpT3H2upDzDV22uFcm2oqK89BRTdWVTg7z0FFN1ZVODsenRyoS_bZvsAHD9HpIaoc&_nc_ohc=e7lXaZy4YOEQ7kNvgF0FK9i&_nc_oc=Adi4okEGnqoE3z1O7_sakGPDrgxlOYpHINCg14RpNXvkTZ-d7o6ZktlqeVcvjO-lPaJeqhOP4Ye6ffr7jKtkaFKZ&_nc_zt=23&_nc_ht=scontent.fbkk24-1.fna&_nc_gid=AZElszZxqnA9Py8aMOPIZvL&oh=00_AYByJRRzUwgGmzdYd5IyQNpvrv9BnIIFDYtvLLEPsEf79A&oe=6771715E" />
+
+    <script>
+        // Data generation function
+        function generateSankeyData() {
+            const sources = ['Source A', 'Source B', 'Source C'];
+            const intermediates = ['Process 1', 'Process 2', 'Process 3', 'Process 4'];
+            const targets = ['Result X', 'Result Y', 'Result Z'];
+            
+            const nodes = [
+                ...sources.map(name => ({name, node_type: 'source'})),
+                ...intermediates.map(name => ({name, node_type: 'process'})),
+                ...targets.map(name => ({name, node_type: 'result'}))
+            ];
+            
+            const links = [];
+            
+            // Source to Intermediate links
+            sources.forEach((source, sourceIndex) => {
+                const intermediateCount = 2 + Math.floor(Math.random() * (intermediates.length - 1));
+                const selectedIntermediates = intermediates
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, intermediateCount);
+                
+                selectedIntermediates.forEach(intermediate => {
+                    links.push({
+                        source: sourceIndex,
+                        target: sources.length + intermediates.indexOf(intermediate),
+                        value: 50 + Math.floor(Math.random() * 150)
+                    });
+                });
+            });
+            
+            // Intermediate to Target links
+            intermediates.forEach((intermediate, intermediateIndex) => {
+                const targetCount = 1 + Math.floor(Math.random() * targets.length);
+                const selectedTargets = targets
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, targetCount);
+                
+                selectedTargets.forEach(target => {
+                    links.push({
+                        source: sources.length + intermediateIndex,
+                        target: sources.length + intermediates.length + targets.indexOf(target),
+                        value: 30 + Math.floor(Math.random() * 120)
+                    });
+                });
+            });
+            
+            return { nodes, links };
+        }
+
+        // Set up the dimensions and margins
+        const margin = {top: 20, right: 160, bottom: 20, left: 160};
+        const width = 1000 - margin.left - margin.right;
+        const height = 600 - margin.top - margin.bottom;
+
+        // Create the SVG container
+        const svg = d3.select("#sankeyChart")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // Set up the sankey generator
+        const sankey = d3.sankey()
+            .nodeWidth(15)
+            .nodePadding(40)
+            .extent([[0, 0], [width, height]]);
+
+        // Generate the data
+        const data = generateSankeyData();
+
+        // Generate the sankey diagram
+        const {nodes, links} = sankey(data);
+
+        const colors = ['#09d3e0', '#00c587', '#d90e44']
+        const nodes_label = ['Source', 'Process', 'Result']
+
+        console.log("data",data);
+
+        // Create color scale for nodes
+        const color = d3.scaleOrdinal()
+            .domain(nodes_label)
+            .range(colors);
+
+        // Add the links
+        const link = svg.append("g")
+            .selectAll(".link")
+            .data(links)
+            .join("path")
+            .attr("class", "link")
+            .attr("d", d3.sankeyLinkHorizontal())
+            // .attr("stroke", colors[1])
+            .attr("stroke", d => {
+                if (d.source.node_type.startsWith('source')) return color('Source');
+                if (d.source.node_type.startsWith('process')) return color('Process');
+                if (d.source.node_type.startsWith('result')) return color('Result');
+            })
+            .attr("stroke-width", d => Math.max(1, d.width))
+            .on("mouseover", function(event, d) {
+                d3.select(this)
+                    .style("stroke-opacity", 0.8);
+                
+                const tooltip = d3.select("#tooltip");
+                tooltip.style("opacity", 1)
+                    .html(`${d.source.name} → ${d.target.name}<br>Value: ${d.value}`)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 10) + "px");
+            })
+            .on("mouseout", function() {
+                d3.select(this)
+                    .style("stroke-opacity", 0.5);
+                d3.select("#tooltip")
+                    .style("opacity", 0);
+            });
+
+        // Add the nodes
+        const node = svg.append("g")
+            .selectAll(".node")
+            .data(nodes)
+            .join("g")
+            .attr("class", "node")
+            .attr("transform", d => `translate(${d.x0},${d.y0})`);
+
+        // Add the rectangles for the nodes
+        node.append("rect")
+            .attr("height", d => d.y1 - d.y0)
+            .attr("width", d => 20)
+            .attr("stroke-width", d => Math.max(1, 2))
+            .attr("fill", d => {
+                if (d.name.startsWith('Source')) return color('Source');
+                if (d.name.startsWith('Process')) return color('Process');
+                return color('Result');
+            })
+            .attr("stroke", "#000")
+            .attr("rx", 10)
+            .attr("ry", 10);
+
+        // Add the title for the nodes
+        node.append("text")
+            .attr("x", d => (d.x0 < width / 2) ? (d.x1 - d.x0 + 10) : -10)
+            .attr("y", d => (d.y1 - d.y0) / 2)
+            .attr("dy", "0.35em")
+            .attr("text-anchor", d => (d.x0 < width / 2) ? "start" : "end")
+            .text(d => d.name);
+    </script>
+</body>
+</html>
